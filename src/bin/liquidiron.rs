@@ -1,21 +1,22 @@
-use std::slice::Iter;
-use std::ops::Range;
-use std::io;
+// use std::slice::Iter;
+// use std::ops::Range;
+// use std::io;
 use rand::random;
-use core::iter::{Iterator, Map, Filter};
+use core::iter::{ Iterator
+                , Map
+                // , Filter
+                };
 
 
 pub trait Source<T> : Iterator<Item = T> {
 }
 
-pub trait Pipe<T> : Iterator<Item = T> {
-    type Consumer;
-
-    fn sink<'a>(&'a self, fun : Self::Consumer) -> Sink<'a, Self::Consumer, T>
-    where Self           : Sized,
-          Self::Consumer : Fn(T) -> (),
+pub trait Pipe<T, C> : Iterator<Item = T> {
+    fn sink<'a>(&'a mut self, fun : C) -> Sink<'a, C, T>
+    where Self : Sized,
+          C    : FnMut(T) -> (),
     {
-        Sink{ fun, iter : Box::new(self) }
+        Sink{ fun, feed : Box::new(self) }
     }
 
 //    fn branch(&self, pipe : impl Pipe<T>) -> Branch<T>;
@@ -26,22 +27,20 @@ pub trait Drain<T> {
     fn drain(&mut self) -> ();
 }
 
-pub struct Sink<'a, F, T>
-    where F : Fn(T) -> ()
+pub struct Sink<'a, C, T>
+    where C : FnMut(T) -> ()
 {
-    fun  :  F,
-    iter : Box<&'a dyn Pipe<T, Consumer = F>>,
+    pub fun  :  C,
+    pub feed : Box<&'a mut dyn Pipe<T, C>>,
 
 }
 
-impl<'a, F, T> Drain<T> for Sink<'a, F, T>
-    where F : Fn(T) -> (),
+impl<'a, C, T> Drain<T> for Sink<'a, C, T>
+    where C : FnMut(T) -> (),
 {
     fn drain(&mut self) -> () {
-        let x = *self.iter;
-        for item in  x.into_iter(){
-            (self.fun)(item);
-        }
+        // self.feed.inspect(self.fun);
+        // Iterator::for_each(self.feed, self.fun);
         ()
     }
 }
@@ -51,13 +50,12 @@ impl<'a, F, T> Drain<T> for Sink<'a, F, T>
 // }
 
 
-impl<T, I, F> Pipe<T> for Map<I, F>
+impl<T, I, F, C> Pipe<T, C> for Map<I, F>
     where
         I : Iterator,
-        F: FnMut(I::Item) -> T,
+        F : FnMut(I::Item) -> T,
+        C : FnMut(I::Item) -> ()
 {
-    type Consumer = F;
-
     // fn branch(&self, pipe : impl Pipe<T>) -> Branch<T> {
     //
     // }
