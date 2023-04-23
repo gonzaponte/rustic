@@ -11,48 +11,28 @@ use core::iter::{ Iterator
 pub trait Source<T> : Iterator<Item = T> {
 }
 
-pub trait Pipe<T, C> : Iterator<Item = T> {
-    fn sink(&mut self, fun : C) -> ()
+pub trait Pipe<T> : Iterator<Item = T> {
+    fn sink<C>(&mut self, fun : C) -> ()
     where Self : Sized,
           C    : Fn(T) -> (),
     {
         self.for_each(|x| fun(x));
     }
 
-//    fn branch(&self, pipe : impl Pipe<T>) -> Branch<T>;
+    // fn branch(&self, pipe : impl Pipe<T>) -> Branch<T>;
 
-}
-
-pub trait Drain<T> {
-    fn drain(&mut self) -> ();
-}
-
-pub struct Sink<'a, C, T>
-    where C : FnMut(T) -> ()
-{
-    pub fun  :  C,
-    pub feed : Box<&'a mut dyn Pipe<T, C>>,
-
-}
-
-impl<'a, C, T> Drain<T> for Sink<'a, C, T>
-    where C : FnMut(T) -> (),
-{
-    fn drain(&mut self) -> () {
-        ()
-    }
 }
 
 // struct Branch<T> {
+//     main     : Box<dyn Pipe<T>>,
 //     sideways : Box<dyn Pipe<T>>,
 // }
 
 
-impl<T, I, F, C> Pipe<T, C> for Map<I, F>
+impl<T, I, F> Pipe<T> for Map<I, F>
     where
         I : Iterator,
         F : FnMut(I::Item) -> T,
-        C : FnMut(I::Item) -> ()
 {
     // fn branch(&self, pipe : impl Pipe<T>) -> Branch<T> {
     //
