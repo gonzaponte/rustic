@@ -12,11 +12,11 @@ pub trait Source<T> : Iterator<Item = T> {
 }
 
 pub trait Pipe<T, C> : Iterator<Item = T> {
-    fn sink<'a>(&'a mut self, fun : C) -> Sink<'a, C, T>
+    fn sink(&mut self, fun : C) -> ()
     where Self : Sized,
-          C    : FnMut(T) -> (),
+          C    : Fn(T) -> (),
     {
-        Sink{ fun, feed : Box::new(self) }
+        self.for_each(|x| fun(x));
     }
 
 //    fn branch(&self, pipe : impl Pipe<T>) -> Branch<T>;
@@ -39,8 +39,6 @@ impl<'a, C, T> Drain<T> for Sink<'a, C, T>
     where C : FnMut(T) -> (),
 {
     fn drain(&mut self) -> () {
-        self.feed.as_mut()
-            .for_each(|x| (self.fun)(x));
         ()
     }
 }
@@ -109,8 +107,7 @@ fn main() -> () {
     let result = source.filter(less_than_one_half)
                        .map   (square_the_number)
                        .map   (add_3)
-                       .sink  (print_to_std)
-                       .drain ();
+                       .sink  (print_to_std);
 
     println!("{:?}", result);
     ()
