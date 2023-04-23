@@ -39,8 +39,8 @@ impl<'a, C, T> Drain<T> for Sink<'a, C, T>
     where C : FnMut(T) -> (),
 {
     fn drain(&mut self) -> () {
-        // self.feed.inspect(self.fun);
-        // Iterator::for_each(self.feed, self.fun);
+        self.feed.as_mut()
+            .for_each(|x| (self.fun)(x));
         ()
     }
 }
@@ -66,17 +66,6 @@ pub struct RandomNumbers {
 }
 
 
-// pub struct PrintToStd<T> {
-//     f : Box<dyn Fn(T) -> io::Result<()>>
-// }
-
-// impl<T> Pipe<T> for PrintToStd<T> {
-//     fn drain(&self) -> Option<T> {
-//
-//     }
-// }
-
-
 impl Iterator for RandomNumbers {
     type Item = f64;
 
@@ -91,6 +80,13 @@ impl Iterator for RandomNumbers {
     }
 }
 
+
+
+
+///////////////////////////////////////////////////
+/// Example
+///////////////////////////////////////////////////
+
 fn less_than_one_half(x : &f64) -> bool {
     *x < 0.5
 }
@@ -99,40 +95,23 @@ fn square_the_number(x : f64) -> f64 {
     x.powf(2.0)
 }
 
+fn add_3(x : f64) -> f64 {
+    x + 3.
+}
+
 fn print_to_std<T : std::fmt::Debug>(x : T) -> () {
     println!("{:?}", x);
 }
 
+
 fn main() -> () {
-    let source = RandomNumbers{n : 5};
+    let source = RandomNumbers{n : 10};
     let result = source.filter(less_than_one_half)
                        .map   (square_the_number)
-                       .sink  (print_to_std);
+                       .map   (add_3)
+                       .sink  (print_to_std)
+                       .drain ();
 
-    // println!("{:?}", result);
+    println!("{:?}", result);
     ()
 }
-
-
-//
-//
-// pub trait Source<'a, T> {
-//     fn iter(&self) -> Iter<'a, T>;
-// }
-//
-// impl<'a, T> Source<'a, T> for Range<T> {
-//     fn iter(&self) -> Iter<'a, T> {
-//         self.iter()
-//     }
-// }
-//
-// pub struct RandomNumbers {
-//     number : Vec<String>,
-// }
-//
-// impl<'a, T> Source<'a, T> for RandomNumbers {
-//     fn iter(&self) -> Iter<'a, T> {
-//         (0..10).iter()
-//                .map(|_| random())
-//     }
-// }
