@@ -9,27 +9,29 @@ use core::iter::{ Iterator
                 };
 
 
-pub struct Branch<P1, P2>
-where P1 : Pipe,
-      P2 : Pipe,
-      P2::Item : Send,
+pub struct Branch<P>
+where P       : Pipe,
+      P::Item : Send,
 {
-    feed     : P1,
-    sideways : P2,
-    source   : Source<P2::Item>,
+    feed     : P,
+    tx       : Sender<P::Item>,
+    main     : PhantomSource<P::Item>,
+    sideways : PhantomSource<P::Item>
 }
 
 
-impl<P1, P2> Branch<P1, P2>
-where P1 : Pipe,
-      P2 : Pipe,
-      P1::Item : Send,
-      P2::Item : Send,
+impl<P> Branch<P>
+where P       : Pipe,
+      P::Item : Send,
 {
-    pub fn new(feed : P1, sideways : P2) -> Branch<P1, P2> {
-        let (tx, rx) = channel::<P2::Item>();
-        let source = PhantomSource::new(rx);
-        Branch{feed, sideways, source}
+    pub fn new<F>(feed : P, sideways : F) -> Branch<P>
+    where F : Fn(P::Item) -> ()
+    {
+        let (tx, rx) = channel::<P::Item>();
+        let main     = PhantomSource::new(rx.clone());
+        let sideways = PhantomSource::new(rx.clone());
+
+        Branch{feed, tx, main, sideways}
     }
 }
 
@@ -64,10 +66,10 @@ pub trait Pipe: Iterator {
         self.for_each(|x| fun(x));
     }
 
-    fn branch<U>(self, pipe : U) -> Branch<Self, U>
-    where Self : Sized,
-          U    : Pipe,
-          U::Item : Send;
+    fn branch<F>(self, pipe : F) -> Branch<Self>
+    where Self       : Sized,
+          Self::Item : Send,
+          F          : Fn(Self::Item) -> ();
 }
 
 impl<O, I, F> Pipe for Map<I, F>
@@ -76,24 +78,27 @@ impl<O, I, F> Pipe for Map<I, F>
         F : FnMut(I::Item) -> O,
         O : Send,
 {
-    fn branch<P>(self, pipe : P) -> Branch<Self, P>
-    where P : Pipe,
-          P::Item : Send,
+    fn branch<B>(self, pipe : B) -> Branch<Self>
+    where Self : Sized,
+          B    : Fn(Self::Item) -> ()
     {
         Branch::new(self, pipe)
     }
 }
 
 
-impl<P1, P2> Iterator for Branch<P1, P2>
-where P1 : Pipe,
-      P2 : Pipe,
-      P2::Item : Send,
+impl<P> Iterator for Branch<P>
+where P       : Pipe,
+      P::Item : Send,
 {
-    type Item = P1::Item;
+    type Item = P::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.feed.next()
+        let item = self.feed.next();
+        if let Some(item) = item {
+            self.tx.send(item).unwrap();
+        }
+        None
     }
 }
 
@@ -137,8 +142,12 @@ fn add_3(x : f64) -> f64 {
     x + 3.
 }
 
-fn print_to_std<T : std::fmt::Debug>(x : T) -> () {
-    println!("{:?}", x);
+fn print_to_std<T>(name : &'static str) -> impl Fn(T) -> ()
+where T : std::fmt::Debug
+{
+    move |x : T| {
+        println!("this is {:?}. received {:?}", name, x)
+    }
 }
 
 
@@ -147,7 +156,7 @@ fn main() -> () {
     let result = source.filter(less_than_one_half)
                        .map   (square_the_number)
                        .map   (add_3)
-                       .sink  (print_to_std);
+                       .sink  (print_to_std("sink"));
 
     println!("{:?}", result);
     ()
