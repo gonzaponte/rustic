@@ -8,6 +8,16 @@ use core::iter::{ Iterator
                 };
 
 
+pub struct Branch<P1, P2>
+where P1 : Pipe,
+      P2 : Pipe
+{
+    feed     : P1,
+    sideways : P2,
+}
+
+
+
 pub trait Source : Iterator {
 }
 
@@ -19,20 +29,10 @@ pub trait Pipe: Iterator {
         self.for_each(|x| fun(x));
     }
 
-    // fn branch<U>(self, pipe : Box<dyn Pipe<U>>) -> Branch<T, U>
-    // where Self : Sized;
     fn branch<U>(self, pipe : U) -> Branch<Self, U>
     where Self : Sized,
           U    : Pipe;
 
-}
-
-pub struct Branch<P1, P2>
-where P1 : Pipe,
-      P2 : Pipe
-{
-    main     : P1,
-    sideways : P2,
 }
 
 impl<O, I, F> Pipe for Map<I, F>
@@ -42,29 +42,25 @@ impl<O, I, F> Pipe for Map<I, F>
 {
     fn branch<P>(self, pipe : P) -> Branch<Self, P>
     where P : Pipe {
-        Branch{ main     : self
+        Branch{ feed     : self
               , sideways : pipe
               }
     }
 }
 
-// pub struct Branch<T1, T2> {
-//     main     : Box<dyn Pipe<T1>>,
-//     sideways : Box<dyn Pipe<T2>>,
-// }
-//
-//
-// impl<O, I, F> Pipe<O> for Map<I, F>
-//     where
-//         I : Iterator,
-//         F : FnMut(I::Item) -> O,
-// {
-//     fn branch<U>(self, pipe : Box<dyn Pipe<U>>) -> Branch<O, U>{
-//         Branch{ main     : Box::new(self)
-//               , sideways : pipe
-//               }
-//     }
-// }
+
+impl<P1, P2> Iterator for Branch<P1, P2>
+where P1 : Pipe,
+      P2 : Pipe,
+{
+    type Item = P1::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.feed.next()
+    }
+}
+
+
 
 pub struct RandomNumbers {
     n : usize,
