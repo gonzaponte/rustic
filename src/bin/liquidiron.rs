@@ -2,6 +2,7 @@
 // use std::ops::Range;
 // use std::io;
 use rand::random;
+use spmc::{channel, Sender, Receiver};
 use core::iter::{ Iterator
                 , Map
                 // , Filter
@@ -10,15 +11,49 @@ use core::iter::{ Iterator
 
 pub struct Branch<P1, P2>
 where P1 : Pipe,
-      P2 : Pipe
+      P2 : Pipe,
+      P2::Item : Send,
 {
     feed     : P1,
     sideways : P2,
+    source   : Source<P2::Item>,
 }
 
 
+impl<P1, P2> Branch<P1, P2>
+where P1 : Pipe,
+      P2 : Pipe,
+      P1::Item : Send,
+      P2::Item : Send,
+{
+    pub fn new(feed : P1, sideways : P2) -> Branch<P1, P2> {
+        let (tx, rx) = channel::<P2::Item>();
+        let source = PhantomSource::new(rx);
+        Branch{feed, sideways, source}
+    }
+}
 
-pub trait Source : Iterator {
+
+pub struct PhantomSource<T : Send> {
+    rx : Receiver<T>,
+}
+
+impl<T : Send> PhantomSource<T> {
+    pub fn new(rx : Receiver<T>) -> Self {
+        Self{rx}
+    }
+}
+
+impl<T : Send> Iterator for PhantomSource<T>{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.rx.recv() {
+            Ok (item) => Some(item),
+            Err(_)    => None,
+        }
+    }
+
 }
 
 pub trait Pipe: Iterator {
@@ -31,20 +66,21 @@ pub trait Pipe: Iterator {
 
     fn branch<U>(self, pipe : U) -> Branch<Self, U>
     where Self : Sized,
-          U    : Pipe;
-
+          U    : Pipe,
+          U::Item : Send;
 }
 
 impl<O, I, F> Pipe for Map<I, F>
     where
         I : Iterator,
         F : FnMut(I::Item) -> O,
+        O : Send,
 {
     fn branch<P>(self, pipe : P) -> Branch<Self, P>
-    where P : Pipe {
-        Branch{ feed     : self
-              , sideways : pipe
-              }
+    where P : Pipe,
+          P::Item : Send,
+    {
+        Branch::new(self, pipe)
     }
 }
 
@@ -52,6 +88,7 @@ impl<O, I, F> Pipe for Map<I, F>
 impl<P1, P2> Iterator for Branch<P1, P2>
 where P1 : Pipe,
       P2 : Pipe,
+      P2::Item : Send,
 {
     type Item = P1::Item;
 
