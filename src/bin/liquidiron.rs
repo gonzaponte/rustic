@@ -2,60 +2,29 @@
 // use std::ops::Range;
 // use std::io;
 use rand::random;
-use spmc::{channel, Sender, Receiver};
 use core::iter::{ Iterator
                 , Map
                 // , Filter
                 };
 
 
-pub struct Branch<P>
-where P       : Pipe,
-      P::Item : Send,
+pub struct Branch<P, F>
+where P : Pipe,
+      F : Fn(P::Item) -> (),
 {
     feed     : P,
-    tx       : Sender<P::Item>,
-    main     : PhantomSource<P::Item>,
-    sideways : PhantomSource<P::Item>
+    sideways : F,
 }
 
 
-impl<P> Branch<P>
-where P       : Pipe,
-      P::Item : Send,
+impl<P, F> Branch<P, F>
+where P : Pipe,
+      F : Fn(P::Item) -> (),
 {
-    pub fn new<F>(feed : P, sideways : F) -> Branch<P>
-    where F : Fn(P::Item) -> ()
+    pub fn new(feed : P, sideways : F) -> Branch<P, F>
     {
-        let (tx, rx) = channel::<P::Item>();
-        let main     = PhantomSource::new(rx.clone());
-        let sideways = PhantomSource::new(rx.clone());
-
-        Branch{feed, tx, main, sideways}
+        Branch{feed, sideways}
     }
-}
-
-
-pub struct PhantomSource<T : Send> {
-    rx : Receiver<T>,
-}
-
-impl<T : Send> PhantomSource<T> {
-    pub fn new(rx : Receiver<T>) -> Self {
-        Self{rx}
-    }
-}
-
-impl<T : Send> Iterator for PhantomSource<T>{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.rx.recv() {
-            Ok (item) => Some(item),
-            Err(_)    => None,
-        }
-    }
-
 }
 
 pub trait Pipe: Iterator {
@@ -66,10 +35,10 @@ pub trait Pipe: Iterator {
         self.for_each(|x| fun(x));
     }
 
-    fn branch<F>(self, pipe : F) -> Branch<Self>
+    fn branch<F>(self, pipe : F) -> Branch<Self, F>
     where Self       : Sized,
           Self::Item : Send,
-          F          : Fn(Self::Item) -> ();
+          F          : Fn(Self::Item) -> (),;
 }
 
 impl<O, I, F> Pipe for Map<I, F>
@@ -78,27 +47,29 @@ impl<O, I, F> Pipe for Map<I, F>
         F : FnMut(I::Item) -> O,
         O : Send,
 {
-    fn branch<B>(self, pipe : B) -> Branch<Self>
+    fn branch<B>(self, pipe : B) -> Branch<Self, B>
     where Self : Sized,
-          B    : Fn(Self::Item) -> ()
+          B    : Fn(Self::Item) -> (),
     {
         Branch::new(self, pipe)
     }
 }
 
 
-impl<P> Iterator for Branch<P>
+impl<P, F> Iterator for Branch<P, F>
 where P       : Pipe,
-      P::Item : Send,
+      P::Item : Copy,
+      F       : Fn(P::Item) -> (),
 {
     type Item = P::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item = self.feed.next();
-        if let Some(item) = item {
-            self.tx.send(item).unwrap();
+        let next_item = self.feed.next();
+
+        if let Some(item) = next_item {
+            (self.sideways)(item);
         }
-        None
+        next_item
     }
 }
 
@@ -145,7 +116,7 @@ fn add_3(x : f64) -> f64 {
 fn print_to_std<T>(name : &'static str) -> impl Fn(T) -> ()
 where T : std::fmt::Debug
 {
-    move |x : T| {
+    move |x : T| -> () {
         println!("this is {:?}. received {:?}", name, x)
     }
 }
@@ -155,6 +126,7 @@ fn main() -> () {
     let source = RandomNumbers{n : 10};
     let result = source.filter(less_than_one_half)
                        .map   (square_the_number)
+                       .branch(print_to_std("branch"))
                        .map   (add_3)
                        .sink  (print_to_std("sink"));
 
