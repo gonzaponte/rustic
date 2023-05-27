@@ -1,5 +1,5 @@
 use spmc::Receiver;
-use crate::liquid::pipe::Pipe;
+use crate::liquid::Pipe;
 
 pub trait SourceTrait : Iterator {
     fn stream<'a>(&'a mut self) -> Source<'a, Self::Item>

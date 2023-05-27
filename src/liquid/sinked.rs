@@ -1,4 +1,4 @@
-use crate::liquid::pipe::Pipe;
+use crate::liquid::Pipe;
 
 pub struct Sinked<'a, I, F> {
     pub(crate) upstream : Option<&'a mut dyn Pipe<Item = I>>,

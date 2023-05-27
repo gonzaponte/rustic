@@ -1,6 +1,6 @@
-use crate::liquid::mapped::Mapped;
-use crate::liquid::filtered::Filtered;
-use crate::liquid::sinked::Sinked;
+use crate::liquid::Mapped;
+use crate::liquid::Filtered;
+use crate::liquid::Sinked;
 
 pub trait Pipe : Iterator {
     fn apply <'a, F, O>(&'a mut self, f : F) ->   Mapped<'a, Self::Item, F>
