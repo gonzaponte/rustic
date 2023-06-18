@@ -11,7 +11,7 @@ pub trait Pipe : Iterator {
     }
 
     fn select<'a, F>(&'a mut self, f : F) -> Filtered<'a, Self::Item, F>
-    where F    : Fn(Self::Item) -> bool,
+    where F    : Fn(&Self::Item) -> bool,
           Self : Sized
     {
         Filtered{upstream : Some(self), f}
