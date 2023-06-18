@@ -6,6 +6,7 @@ mod sinked;
 mod branched;
 
 pub use   source::Source;
+pub use   source::BranchSource;
 pub use   source::SourceTrait;
 pub use   pipe  ::Pipe;
 pub use   mapped::Mapped;
