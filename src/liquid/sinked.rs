@@ -11,14 +11,12 @@ impl<'a, I, F> Iterator for Sinked<'a, I, F>
     type Item = ();
 
     fn next(&mut self) -> Option<Self::Item> {
-        let unit = self.upstream
-                       .as_mut()
-                       .unwrap()
-                       .next  ()
-                       .map   (&mut self.f)
-                       .unwrap();
-        assert_eq!((), unit);
-        Some(())
+        self.upstream
+            .as_mut()
+            .unwrap()
+            .next  ()
+            .map   (&mut self.f)
+            .map(|value| assert_eq!((), value))
     }
 }
 
