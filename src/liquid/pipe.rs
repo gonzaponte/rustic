@@ -1,6 +1,11 @@
+use spmc::channel;
+use std::thread;
+
+use crate::liquid::BranchSource;
 use crate::liquid::Mapped;
 use crate::liquid::Filtered;
 use crate::liquid::Sinked;
+use crate::liquid::Branched;
 
 pub trait Pipe : Iterator {
     fn apply <'a, F, O>(&'a mut self, f : F) ->   Mapped<'a, Self::Item, F>
@@ -24,4 +29,17 @@ pub trait Pipe : Iterator {
         Sinked{upstream : Some(self), f}
     }
 
+    fn branch<'a, F>(&'a mut self, f : F) -> Branched<'a, Self::Item>
+    where Self::Item : 'static + Send,
+          F          : 'static + Fn(BranchSource<Self::Item>) -> () + Send,
+          Self       : Sized
+    {
+        let (sender, receiver) = channel();
+        let source = BranchSource{receiver};
+
+        thread::spawn(move || {
+            f(source)
+        });
+        Branched{upstream : Some(self), sender}
+    }
 }
