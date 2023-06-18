@@ -5,6 +5,14 @@ pub struct Sinked<'a, I, F> {
     pub(crate) f        : F,
 }
 
+impl <'a, I, F> Sinked<'a, I, F>
+    where F : Fn(I) -> ()
+{
+    pub fn consume(&mut self) -> () {
+        self.count();
+    }
+}
+
 impl<'a, I, F> Iterator for Sinked<'a, I, F>
     where F : Fn(I) -> ()
 {
